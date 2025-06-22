@@ -54,7 +54,7 @@ const int sensitivity = 10;
 /* Private variables ---------------------------------------------------------*/
 //I2C_HandleTypeDef hi2c1;
 
-UART_HandleTypeDef huart1;
+UART_HandleTypeDef huart1; 
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
 /* USER CODE BEGIN PV */
