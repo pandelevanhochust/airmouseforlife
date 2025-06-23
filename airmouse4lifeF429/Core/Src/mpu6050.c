@@ -9,13 +9,13 @@
 
 // địa chỉ cảm biến
 #define WHO_AM_I_REG         0x75
-#define PWR_MGMT_1_REG       0x6B
-#define SMPLRT_DIV_REG       0x19
-#define ACCEL_CONFIG_REG     0x1C
-#define ACCEL_XOUT_H_REG     0x3B
+#define MPU6050_PWR_MGMT_1       0x6B
+#define MPU6050_SMPLRT_DIV       0x19
+#define MPU6050_ACCEL_CONFIG     0x1C
+#define MPU6050_ACCEL_XOUT_H     0x3B
 #define TEMP_OUT_H_REG       0x41
-#define GYRO_CONFIG_REG      0x1B
-#define GYRO_XOUT_H_REG      0x43
+#define MPU6050_GYRO_CONFIG      0x1B
+#define MPU6050_GYRO_XOUT_H      0x43
 
 // Địa chỉ I2C của MPU6050
 #define MPU6050_ADDR         0xD0
@@ -58,19 +58,19 @@ uint8_t MPU6050_Init(I2C_HandleTypeDef *hi2c) {
 
     // Đưa cảm biến ra khỏi chế độ sleep
     data = 0;
-    HAL_I2C_Mem_Write(hi2c, MPU6050_ADDR, PWR_MGMT_1_REG, 1, &data, 1, i2c_timeout);
+    HAL_I2C_Mem_Write(hi2c, MPU6050_ADDR, MPU6050_PWR_MGMT_1, 1, &data, 1, i2c_timeout);
 
     // Cấu hình tốc độ lấy mẫu (1KHz / (1 + 7) = 125Hz)
     data = 0x07;
-    HAL_I2C_Mem_Write(hi2c, MPU6050_ADDR, SMPLRT_DIV_REG, 1, &data, 1, i2c_timeout);
+    HAL_I2C_Mem_Write(hi2c, MPU6050_ADDR, MPU6050_SMPLRT_DIV, 1, &data, 1, i2c_timeout);
 
     // Cấu hình gia tốc kế ±2g
     data = 0x00;
-    HAL_I2C_Mem_Write(hi2c, MPU6050_ADDR, ACCEL_CONFIG_REG, 1, &data, 1, i2c_timeout);
+    HAL_I2C_Mem_Write(hi2c, MPU6050_ADDR, MPU6050_ACCEL_CONFIG, 1, &data, 1, i2c_timeout);
 
     // Cấu hình con quay hồi chuyển ±250°/s
     data = 0x00;
-    HAL_I2C_Mem_Write(hi2c, MPU6050_ADDR, GYRO_CONFIG_REG, 1, &data, 1, i2c_timeout);
+    HAL_I2C_Mem_Write(hi2c, MPU6050_ADDR, MPU6050_GYRO_CONFIG, 1, &data, 1, i2c_timeout);
 
     return 0;
 }
@@ -82,7 +82,7 @@ void MPU6050_Read_All(I2C_HandleTypeDef *hi2c, MPU6050_t *data) {
     uint8_t rec_data[14];
 
     // Đọc 14 byte từ thanh ghi ACCEL_XOUT_H
-    HAL_I2C_Mem_Read(hi2c, MPU6050_ADDR, ACCEL_XOUT_H_REG, 1, rec_data, 14, i2c_timeout);
+    HAL_I2C_Mem_Read(hi2c, MPU6050_ADDR, MPU6050_ACCEL_XOUT_H, 1, rec_data, 14, i2c_timeout);
 
     // Giải mã dữ liệu gia tốc thô
     data->Accel_X_RAW = (int16_t)(rec_data[0] << 8 | rec_data[1]);
@@ -128,7 +128,7 @@ void MPU6050_Read_All(I2C_HandleTypeDef *hi2c, MPU6050_t *data) {
         data->Gx = -data->Gx;
 
     // Cập nhật roll bằng Kalman filter
-    data->KalmanAngleX = Kalman_getAngle(&KalmanX, roll, data->Gy, dt);
+    data->KalmanAngleX = Kalman_getAngle(&KalmanX, roll, data->Gx, dt);
 }
 
 /**

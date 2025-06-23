@@ -68,11 +68,11 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-//void SendDataOverUART(MPU6050_t *MPU6050)
+
+//void SendDataOverUART(MPU6050_t *MPU6050,int x,int y)
 //{
 //    // Send data in CSV format
 //    char buffer[200];
-//
 //    sprintf(
 //        buffer,
 //        "x:%d.%02d, y:%d.%02d, z:%d.%02d\r\n",
@@ -82,22 +82,20 @@ static void MX_USART1_UART_Init(void);
 //    );
 //
 //    // Send the data over UART
-////    HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
+//    HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
 //    HAL_UART_Transmit(&huart1, (uint8_t *)buffer, strlen(buffer), HAL_MAX_DELAY);
 //}
 
 void SendDataOverUART(MPU6050_t *MPU6050, int8_t xMove, int8_t yMove)
 {
     char buffer[300];
+    //        "x:%d.%02d, y:%d.%02d, z:%d.%02d\r\n",
 
     sprintf(buffer,
-        "AngleX: %d.%02d, AngleY: %d.%02d\r\n",
-//        (int)MPU6050->Ax, abs((int)(MPU6050->Ax * 100) % 100),
-//        (int)MPU6050->Ay, abs((int)(MPU6050->Ay * 100) % 100),
-//        (int)MPU6050->Az, abs((int)(MPU6050->Az * 100) % 100),
+        "x:%d.%02d, y:%d.%02d, z:%d, t:%d\r\n",
         (int)MPU6050->KalmanAngleX, abs((int)(MPU6050->KalmanAngleX * 100) % 100),
-        (int)MPU6050->KalmanAngleY, abs((int)(MPU6050->KalmanAngleY * 100) % 100)
-//        xMove, yMove
+        (int)MPU6050->KalmanAngleY, abs((int)(MPU6050->KalmanAngleY * 100) % 100),
+        xMove, yMove
     );
 
     HAL_UART_Transmit(&huart1, (uint8_t *)buffer, strlen(buffer), HAL_MAX_DELAY);
