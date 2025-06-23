@@ -102,7 +102,6 @@ void Scan_I2C_Addresses(void)
 
     sprintf(buffer, "Scanning I2C addresses...\r\n");
     HAL_UART_Transmit(&huart1, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);
-
     for(i = 1; i < 128; i++)
     {
         ret = HAL_I2C_IsDeviceReady(&hi2c1, (i << 1), 2, 100);

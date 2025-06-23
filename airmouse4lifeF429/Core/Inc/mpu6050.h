@@ -1,9 +1,3 @@
-/*
- * mpu6050.h
- *
- *  Created on: Nov 13, 2019
- *      Author: Bulanov Konstantin
- */
 
 #ifndef INC_GY521_H_
 #define INC_GY521_H_
@@ -42,6 +36,7 @@ typedef struct {
     double Q_angle;
     double Q_bias;
     double R_measure;
+
     double angle;
     double bias;
     double P[2][2];

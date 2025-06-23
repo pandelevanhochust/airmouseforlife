@@ -88,7 +88,7 @@ void SendDataOverUART(MPU6050_t *MPU6050)
     );
 
     // Send the data over UART
-    HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
+//    HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
     HAL_UART_Transmit(&huart1, (uint8_t *)buffer, strlen(buffer), HAL_MAX_DELAY);
 }
 
@@ -110,7 +110,7 @@ void Scan_I2C_Addresses(void)
         {
             sprintf(buffer, "I2C device found at address: 0x%02X\r\n", i);
             HAL_UART_Transmit(&huart1, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);
-            HAL_GPIO_WritePin(GPIOG, GPIO_PIN_13,GPIO_PIN_SET);
+//            HAL_GPIO_WritePin(GPIOG, GPIO_PIN_13,GPIO_PIN_SET);
         }
     }
 
@@ -168,7 +168,7 @@ int main(void)
  }
 
  if(init_attempts <= 10) {
-	 HAL_GPIO_WritePin(GPIOG,GPIO_PIN_13,GPIO_PIN_SET);
+//	 HAL_GPIO_WritePin(GPIOG,GPIO_PIN_13,GPIO_PIN_SET);
 	 HAL_UART_Transmit(&huart1, (uint8_t *)"MPU6050 Initialized Successfully!\r\n", 36, HAL_MAX_DELAY);
  }
 
@@ -182,21 +182,27 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+	    if(hUsbDeviceFS.pClassData != NULL) {
+	   	 HAL_GPIO_WritePin(GPIOG,GPIO_PIN_13,GPIO_PIN_SET);
 
-	    MPU6050_Read_All(&hi2c1, &MPU6050);
-	    SendDataOverUART(&MPU6050);
+		    MPU6050_Read_All(&hi2c1, &MPU6050);
+		    SendDataOverUART(&MPU6050);
 
-	    int8_t xMove = (int8_t)(MPU6050.Ax / 1000.0f * sensitivity);
-	    int8_t yMove = (int8_t)(MPU6050.Ay / 1000.0f * sensitivity);
+		    int8_t xMove = (int8_t)(MPU6050.Ax / 1000.0f * sensitivity);
+		    int8_t yMove = (int8_t)(MPU6050.Ay / 1000.0f * sensitivity);
 
-	    // Prepare HID report
-	    uint8_t HID_Buffer[3] = {0};
-	    HID_Buffer[1] = xMove;
-	    HID_Buffer[2] = -yMove;
+		    // Prepare HID report
+		    uint8_t HID_Buffer[3] = {0};
+		    HID_Buffer[1] = xMove;
+		    HID_Buffer[2] = -yMove;
 
-	    // Send HID report
-	    USBD_HID_SendReport(&hUsbDeviceFS, HID_Buffer, sizeof(HID_Buffer));
-	    HAL_Delay(10);
+		    // Send HID report
+		    USBD_HID_SendReport(&hUsbDeviceFS, HID_Buffer, sizeof(HID_Buffer));
+		    HAL_Delay(10);
+
+	    } else {
+	   	 HAL_GPIO_WritePin(GPIOG,GPIO_PIN_13,GPIO_PIN_RESET);
+	    }
 
     /* USER CODE BEGIN 3 */
   /* USER CODE END 3 */
