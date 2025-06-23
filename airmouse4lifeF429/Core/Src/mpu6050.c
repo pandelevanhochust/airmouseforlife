@@ -1,210 +1,174 @@
-#include <math.h>
 #include "mpu6050.h"
+#include "math.h"
 
-#define RAD_TO_DEG 57.295779513082320876798154814105
+// Hằng số chuyển đổi radian sang độ
+#define RAD_TO_DEG 57.29577951308232
 
-#define WHO_AM_I_REG 0x75
-#define PWR_MGMT_1_REG 0x6B
-#define SMPLRT_DIV_REG 0x19
-#define ACCEL_CONFIG_REG 0x1C
-#define ACCEL_XOUT_H_REG 0x3B
-#define TEMP_OUT_H_REG 0x41
-#define GYRO_CONFIG_REG 0x1B
-#define GYRO_XOUT_H_REG 0x43
+// địa chỉ cảm biến
+#define WHO_AM_I_REG         0x75
+#define PWR_MGMT_1_REG       0x6B
+#define SMPLRT_DIV_REG       0x19
+#define ACCEL_CONFIG_REG     0x1C
+#define ACCEL_XOUT_H_REG     0x3B
+#define TEMP_OUT_H_REG       0x41
+#define GYRO_CONFIG_REG      0x1B
+#define GYRO_XOUT_H_REG      0x43
 
-// Setup MPU6050
-#define MPU6050_ADDR 0xD0
-const uint16_t i2c_timeout = (uint16_t)HAL_MAX_DELAY;
+// Địa chỉ I2C của MPU6050
+#define MPU6050_ADDR         0xD0
+
+// Hằng số chia độ nhạy
+#define LSB_ACC              16384.0f   // ±2g → 16384 LSB/g
+#define LSB_GYRO             131.0f     // ±250 dps → 131 LSB/(°/s)
+
+// Timeout mặc định cho I2C
+const uint16_t i2c_timeout = HAL_MAX_DELAY;
+
+// Hệ số hiệu chỉnh trục Z cho cảm biến gia tốc
 const double Accel_Z_corrector = 14418.0;
-const double lsb = 16384.0;
 
+// Biến lưu thời gian lần đo trước
 uint32_t timer = 0;
 
+// Cấu hình bộ lọc Kalman cho góc X và Y
 Kalman_t KalmanX = {
-        .Q_angle = 0.001f,
-        .Q_bias = 0.003f,
-        .R_measure = 0.03f
+		.Q_angle = 0.001f,
+		.Q_bias = 0.003f,
+		.R_measure = 0.03f
 };
-
 Kalman_t KalmanY = {
-        .Q_angle = 0.001f,
-        .Q_bias = 0.003f,
-        .R_measure = 0.03f,
+		.Q_angle = 0.001f,
+		.Q_bias = 0.003f,
+		.R_measure = 0.03f
 };
 
-uint8_t MPU6050_Init(I2C_HandleTypeDef *I2Cx) {
-    uint8_t check;
-    uint8_t Data;
+/**
+ * @brief Khởi tạo MPU6050
+ * @retval 0 nếu thành công, 1 nếu lỗi
+ */
+uint8_t MPU6050_Init(I2C_HandleTypeDef *hi2c) {
+    uint8_t check = 0, data = 0;
 
-    // check device ID WHO_AM_I
+    // Đọc thanh ghi WHO_AM_I để kiểm tra thiết bị
+    HAL_I2C_Mem_Read(hi2c, MPU6050_ADDR, WHO_AM_I_REG, 1, &check, 1, i2c_timeout);
+    if (check != 104) return 1; // 0x68 là ID mặc định của MPU6050
 
-    HAL_I2C_Mem_Read(I2Cx, MPU6050_ADDR, WHO_AM_I_REG, 1, &check, 1, i2c_timeout);
+    // Đưa cảm biến ra khỏi chế độ sleep
+    data = 0;
+    HAL_I2C_Mem_Write(hi2c, MPU6050_ADDR, PWR_MGMT_1_REG, 1, &data, 1, i2c_timeout);
 
-    if (check == 104)  // 0x68 will be returned by the sensor if everything goes well
-    {
-        // power management register 0X6B we should write all 0's to wake the sensor up
-        Data = 0;
-        HAL_I2C_Mem_Write(I2Cx, MPU6050_ADDR, PWR_MGMT_1_REG, 1, &Data, 1, i2c_timeout);
+    // Cấu hình tốc độ lấy mẫu (1KHz / (1 + 7) = 125Hz)
+    data = 0x07;
+    HAL_I2C_Mem_Write(hi2c, MPU6050_ADDR, SMPLRT_DIV_REG, 1, &data, 1, i2c_timeout);
 
-        // Set DATA RATE of 1KHz by writing SMPLRT_DIV register
-        Data = 0x07;
-        HAL_I2C_Mem_Write(I2Cx, MPU6050_ADDR, SMPLRT_DIV_REG, 1, &Data, 1, i2c_timeout);
+    // Cấu hình gia tốc kế ±2g
+    data = 0x00;
+    HAL_I2C_Mem_Write(hi2c, MPU6050_ADDR, ACCEL_CONFIG_REG, 1, &data, 1, i2c_timeout);
 
-        // Set accelerometer configuration in ACCEL_CONFIG Register
-        // XA_ST=0,YA_ST=0,ZA_ST=0, FS_SEL=0 -> � 2g
-        Data = 0x00;
-        HAL_I2C_Mem_Write(I2Cx, MPU6050_ADDR, ACCEL_CONFIG_REG, 1, &Data, 1, i2c_timeout);
+    // Cấu hình con quay hồi chuyển ±250°/s
+    data = 0x00;
+    HAL_I2C_Mem_Write(hi2c, MPU6050_ADDR, GYRO_CONFIG_REG, 1, &data, 1, i2c_timeout);
 
-        // Set Gyroscopic configuration in GYRO_CONFIG Register
-        // XG_ST=0,YG_ST=0,ZG_ST=0, FS_SEL=0 -> � 250 �/s
-        Data = 0x00;
-        HAL_I2C_Mem_Write(I2Cx, MPU6050_ADDR, GYRO_CONFIG_REG, 1, &Data, 1, i2c_timeout);
-        return 0;
-    }
-    return 1;
+    return 0;
 }
 
+/**
+ * @brief Đọc toàn bộ dữ liệu (gia tốc, nhiệt độ, gyro) và tính góc roll/pitch bằng Kalman
+ */
+void MPU6050_Read_All(I2C_HandleTypeDef *hi2c, MPU6050_t *data) {
+    uint8_t rec_data[14];
 
-void MPU6050_Read_Accel(I2C_HandleTypeDef *I2Cx, MPU6050_t *DataStruct) {
-    uint8_t Rec_Data[6];
+    // Đọc 14 byte từ thanh ghi ACCEL_XOUT_H: ACCEL(6B) + TEMP(2B) + GYRO(6B)
+    HAL_I2C_Mem_Read(hi2c, MPU6050_ADDR, ACCEL_XOUT_H_REG, 1, rec_data, 14, i2c_timeout);
 
-    // Read 6 BYTES of data starting from ACCEL_XOUT_H register
+    // Giải mã dữ liệu gia tốc thô
+    data->Accel_X_RAW = (int16_t)(rec_data[0] << 8 | rec_data[1]);
+    data->Accel_Y_RAW = (int16_t)(rec_data[2] << 8 | rec_data[3]);
+    data->Accel_Z_RAW = (int16_t)(rec_data[4] << 8 | rec_data[5]);
 
-    HAL_I2C_Mem_Read(I2Cx, MPU6050_ADDR, ACCEL_XOUT_H_REG, 1, Rec_Data, 6, i2c_timeout);
+    // Chuyển đổi gia tốc thô sang đơn vị m/s²
+    data->Ax = data->Accel_X_RAW * 981.0f / LSB_ACC;
+    data->Ay = data->Accel_Y_RAW * 981.0f / LSB_ACC;
+    data->Az = data->Accel_Z_RAW * 981.0f / Accel_Z_corrector;
 
-    DataStruct->Accel_X_RAW = (int16_t) (Rec_Data[0] << 8 | Rec_Data[1]);
-    DataStruct->Accel_Y_RAW = (int16_t) (Rec_Data[2] << 8 | Rec_Data[3]);
-    DataStruct->Accel_Z_RAW = (int16_t) (Rec_Data[4] << 8 | Rec_Data[5]);
+    // Nhiệt độ (không bắt buộc)
+    int16_t temp_raw = (int16_t)(rec_data[6] << 8 | rec_data[7]);
+    data->Temperature = (float)temp_raw / 340.0f + 36.53f;
 
-    /*** convert the RAW values into acceleration in 'g'
-         we have to divide according to the Full scale value set in FS_SEL
-         I have configured FS_SEL = 0. So I am dividing by 16384.0
-         for more details check ACCEL_CONFIG Register              ****/
+    // Giải mã dữ liệu gyro
+    data->Gyro_X_RAW = (int16_t)(rec_data[8] << 8 | rec_data[9]);
+    data->Gyro_Y_RAW = (int16_t)(rec_data[10] << 8 | rec_data[11]);
+    data->Gyro_Z_RAW = (int16_t)(rec_data[12] << 8 | rec_data[13]);
 
-    DataStruct->Ax = DataStruct->Accel_X_RAW * 981 / lsb;
-    DataStruct->Ay = DataStruct->Accel_Y_RAW * 981 / lsb;
-    DataStruct->Az = DataStruct->Accel_Z_RAW * 981 / Accel_Z_corrector;
-}
+    // Chuyển gyro từ LSB sang độ/giây (°/s)
+    data->Gx = data->Gyro_X_RAW / LSB_GYRO;
+    data->Gy = data->Gyro_Y_RAW / LSB_GYRO;
+    data->Gz = data->Gyro_Z_RAW / LSB_GYRO;
 
-
-void MPU6050_Read_Gyro(I2C_HandleTypeDef *I2Cx, MPU6050_t *DataStruct) {
-    uint8_t Rec_Data[6];
-
-    // Read 6 BYTES of data starting from GYRO_XOUT_H register
-
-    HAL_I2C_Mem_Read(I2Cx, MPU6050_ADDR, GYRO_XOUT_H_REG, 1, Rec_Data, 6, i2c_timeout);
-
-    DataStruct->Gyro_X_RAW = (int16_t) (Rec_Data[0] << 8 | Rec_Data[1]);
-    DataStruct->Gyro_Y_RAW = (int16_t) (Rec_Data[2] << 8 | Rec_Data[3]);
-    DataStruct->Gyro_Z_RAW = (int16_t) (Rec_Data[4] << 8 | Rec_Data[5]);
-
-    /*** convert the RAW values into dps (�/s)
-         we have to divide according to the Full scale value set in FS_SEL
-         I have configured FS_SEL = 0. So I am dividing by 131.0
-         for more details check GYRO_CONFIG Register              ****/
-
-    DataStruct->Gx = DataStruct->Gyro_X_RAW / 131.0;
-    DataStruct->Gy = DataStruct->Gyro_Y_RAW / 131.0;
-    DataStruct->Gz = DataStruct->Gyro_Z_RAW / 131.0;
-}
-
-void MPU6050_Read_Temp(I2C_HandleTypeDef *I2Cx, MPU6050_t *DataStruct) {
-    uint8_t Rec_Data[2];
-    int16_t temp;
-
-    // Read 2 BYTES of data starting from TEMP_OUT_H_REG register
-
-    HAL_I2C_Mem_Read(I2Cx, MPU6050_ADDR, TEMP_OUT_H_REG, 1, Rec_Data, 2, i2c_timeout);
-
-    temp = (int16_t) (Rec_Data[0] << 8 | Rec_Data[1]);
-    DataStruct->Temperature = (float) ((int16_t) temp / (float) 340.0 + (float) 36.53);
-}
-
-void MPU6050_Read_All(I2C_HandleTypeDef *I2Cx, MPU6050_t *DataStruct) {
-    uint8_t Rec_Data[14];
-    int16_t temp;
-
-    // Read 14 BYTES of data starting from ACCEL_XOUT_H register
-
-    HAL_I2C_Mem_Read(I2Cx, MPU6050_ADDR, ACCEL_XOUT_H_REG, 1, Rec_Data, 14, i2c_timeout);
-
-    DataStruct->Accel_X_RAW = (int16_t) (Rec_Data[0] << 8 | Rec_Data[1]);
-    DataStruct->Accel_Y_RAW = (int16_t) (Rec_Data[2] << 8 | Rec_Data[3]);
-    DataStruct->Accel_Z_RAW = (int16_t) (Rec_Data[4] << 8 | Rec_Data[5]);
-    temp = (int16_t) (Rec_Data[6] << 8 | Rec_Data[7]);
-    DataStruct->Gyro_X_RAW = (int16_t) (Rec_Data[8] << 8 | Rec_Data[9]);
-    DataStruct->Gyro_Y_RAW = (int16_t) (Rec_Data[10] << 8 | Rec_Data[11]);
-    DataStruct->Gyro_Z_RAW = (int16_t) (Rec_Data[12] << 8 | Rec_Data[13]);
-
-    DataStruct->Ax = DataStruct->Accel_X_RAW * 981 / lsb;
-    DataStruct->Ay = DataStruct->Accel_Y_RAW * 981 / lsb;
-    DataStruct->Az = DataStruct->Accel_Z_RAW * 981 / Accel_Z_corrector;
-    DataStruct->Temperature = (float) ((int16_t) temp / (float) 340.0 + (float) 36.53);
-    DataStruct->Gx = DataStruct->Gyro_X_RAW / 131.0;
-    DataStruct->Gy = DataStruct->Gyro_Y_RAW / 131.0;
-    DataStruct->Gz = DataStruct->Gyro_Z_RAW / 131.0;
-
-    // Kalman angle solve
-    double dt = (double) (HAL_GetTick() - timer) / 1000;
+    // Tính thời gian dt giữa hai lần đo
+    double dt = (double)(HAL_GetTick() - timer) / 1000.0;
     timer = HAL_GetTick();
-    double roll;
-    double roll_sqrt = sqrt(
-            DataStruct->Accel_X_RAW * DataStruct->Accel_X_RAW + DataStruct->Accel_Z_RAW * DataStruct->Accel_Z_RAW);
-    if (roll_sqrt != 0.0) {
-        roll = atan(DataStruct->Accel_Y_RAW / roll_sqrt) * RAD_TO_DEG;
-    } else {
-        roll = 0.0;
-    }
-    double pitch = atan2(-DataStruct->Accel_X_RAW, DataStruct->Accel_Z_RAW) * RAD_TO_DEG;
-    if ((pitch < -90 && DataStruct->KalmanAngleY > 90) || (pitch > 90 && DataStruct->KalmanAngleY < -90)) {
+
+    // Tính góc roll từ gia tốc (gần đúng)
+    double roll_sqrt = sqrt(data->Accel_X_RAW * data->Accel_X_RAW + data->Accel_Z_RAW * data->Accel_Z_RAW);
+    double roll = (roll_sqrt != 0.0) ? atan(data->Accel_Y_RAW / roll_sqrt) * RAD_TO_DEG : 0.0;
+
+    // Tính góc pitch từ gia tốc bằng atan2
+    double pitch = atan2(-data->Accel_X_RAW, data->Accel_Z_RAW) * RAD_TO_DEG;
+
+    // Bảo vệ bộ lọc Kalman khỏi nhảy đột ngột khi pitch vượt ±90°
+    if ((pitch < -90 && data->KalmanAngleY > 90) || (pitch > 90 && data->KalmanAngleY < -90)) {
         KalmanY.angle = pitch;
-        DataStruct->KalmanAngleY = pitch;
+        data->KalmanAngleY = pitch;
     } else {
-        DataStruct->KalmanAngleY = Kalman_getAngle(&KalmanY, pitch, DataStruct->Gy, dt);
+        data->KalmanAngleY = Kalman_getAngle(&KalmanY, pitch, data->Gy, dt);
     }
-    if (fabs(DataStruct->KalmanAngleY) > 90)
-        DataStruct->Gx = -DataStruct->Gx;
-    DataStruct->KalmanAngleX = Kalman_getAngle(&KalmanX, roll, DataStruct->Gy, dt);
 
+    // Nếu pitch vượt ±90°, đảo chiều trục X
+    if (fabs(data->KalmanAngleY) > 90)
+        data->Gx = -data->Gx;
+
+    // Cập nhật roll bằng Kalman filter
+    data->KalmanAngleX = Kalman_getAngle(&KalmanX, roll, data->Gy, dt);
 }
 
-double Kalman_getAngle(Kalman_t *Kalman, double newAngle, double newRate, double dt) {
-    // Dự đoán tốc độ thực bằng cách loại bỏ sai số bias
-    double rate = newRate - Kalman->bias;
+/**
+ * @brief Bộ lọc Kalman 1 chiều cho dữ liệu góc
+ */
+double Kalman_getAngle(Kalman_t *kalman, double newAngle, double newRate, double dt) {
+    // Dự đoán bước tiếp theo
+    double rate = newRate - kalman->bias;
+    kalman->angle += dt * rate;
 
-    // Ước lượng góc dự đoán (angle) sau khoảng thời gian dt
-    Kalman->angle += dt * rate;
+    // Cập nhật ma trận hiệp phương sai
+    kalman->P[0][0] += dt * (dt * kalman->P[1][1] - kalman->P[0][1] - kalman->P[1][0] + kalman->Q_angle);
+    kalman->P[0][1] -= dt * kalman->P[1][1];
+    kalman->P[1][0] -= dt * kalman->P[1][1];
+    kalman->P[1][1] += kalman->Q_bias * dt;
 
-    // Cập nhật ma trận hiệp phương sai dự đoán (P)
-    Kalman->P[0][0] += dt * (dt * Kalman->P[1][1] - Kalman->P[0][1] - Kalman->P[1][0] + Kalman->Q_angle);
-    Kalman->P[0][1] -= dt * Kalman->P[1][1];
-    Kalman->P[1][0] -= dt * Kalman->P[1][1];
-    Kalman->P[1][1] += Kalman->Q_bias * dt;
+    // Tính độ tin cậy đo (S)
+    double S = kalman->P[0][0] + kalman->R_measure;
 
-    // Tính toán độ lệch giữa góc đo và góc dự đoán của phép đo (S)
-    double S = Kalman->P[0][0] + Kalman->R_measure;
-
-    // Tính toán Kalman Gain (K)
+    // Kalman Gain
     double K[2];
-    K[0] = Kalman->P[0][0] / S;
-    K[1] = Kalman->P[1][0] / S;
+    K[0] = kalman->P[0][0] / S;
+    K[1] = kalman->P[1][0] / S;
 
-    // Cập nhật sai số giữa góc và độ lệch  bằng sai số nhân với Kalman Gain
-    double y = newAngle - Kalman->angle;
-    Kalman->angle += K[0] * y;
-    Kalman->bias  += K[1] * y;
+    // Sai số giữa đo và dự đoán
+    double y = newAngle - kalman->angle;
 
-    // Lưu tạm các giá trị của ma trận hiệp phương sai để cập nhật
-    double P00_temp = Kalman->P[0][0];
-    double P01_temp = Kalman->P[0][1];
+    // Cập nhật góc và bias
+    kalman->angle += K[0] * y;
+    kalman->bias += K[1] * y;
 
-    // Cập nhật ma trận hiệp phương sai (P) sau bước hiệu chỉnh
-    Kalman->P[0][0] -= K[0] * P00_temp;
-    Kalman->P[0][1] -= K[0] * P01_temp;
-    Kalman->P[1][0] -= K[1] * P00_temp;
-    Kalman->P[1][1] -= K[1] * P01_temp;
+    // Cập nhật lại ma trận P
+    double P00_temp = kalman->P[0][0];
+    double P01_temp = kalman->P[0][1];
 
-    // Trả về góc đã được lọc và hiệu chỉnh
-    return Kalman->angle;
+    kalman->P[0][0] -= K[0] * P00_temp;
+    kalman->P[0][1] -= K[0] * P01_temp;
+    kalman->P[1][0] -= K[1] * P00_temp;
+    kalman->P[1][1] -= K[1] * P01_temp;
+
+    return kalman->angle;
 }
-

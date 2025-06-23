@@ -37,7 +37,6 @@
 /* USER CODE BEGIN PTD */
 MPU6050_t MPU6050;
 //uint8_t HID_Buffer[3];
-const int sensitivity = 10;
 
 /* USER CODE END PTD */
 
@@ -81,10 +80,6 @@ void SendDataOverUART(MPU6050_t *MPU6050)
         (int)MPU6050->Ax, abs((int)(MPU6050->Ax * 100) % 100),
         (int)MPU6050->Ay, abs((int)(MPU6050->Ay * 100) % 100),
         (int)MPU6050->Az, abs((int)(MPU6050->Az * 100) % 100)
-//        (int)MPU6050->Gx, abs((int)(MPU6050->Gx * 100) % 100),
-//        (int)MPU6050->Gy, abs((int)(MPU6050->Gy * 100) % 100),
-//        (int)MPU6050->Gz, abs((int)(MPU6050->Gz * 100) % 100),
-//        (int)MPU6050->Temperature, abs((int)(MPU6050->Temperature * 100) % 100)
     );
 
     // Send the data over UART
@@ -185,13 +180,21 @@ int main(void)
 	    if(hUsbDeviceFS.pClassData != NULL) {
 	   	 HAL_GPIO_WritePin(GPIOG,GPIO_PIN_13,GPIO_PIN_SET);
 
+	   	 	MPU6050_Read_Gyro(&hi2c1, &MPU6050);
 		    MPU6050_Read_All(&hi2c1, &MPU6050);
+
+		    float scale = 0.3f;
+
+		    int8_t xMove = (int8_t)(MPU6050.KalmanAngleX * scale);
+		    int8_t yMove = (int8_t)(MPU6050.KalmanAngleY * scale);
 		    SendDataOverUART(&MPU6050);
 
-		    int8_t xMove = (int8_t)(MPU6050.Ax / 1000.0f * sensitivity);
-		    int8_t yMove = (int8_t)(MPU6050.Ay / 1000.0f * sensitivity);
 
 		    // Prepare HID report
+		    //Deadzone
+		    if (abs(xMove) < 1) xMove = 0;
+		    if (abs(yMove) < 1) yMove = 0;
+
 		    uint8_t HID_Buffer[3] = {0};
 		    HID_Buffer[1] = xMove;
 		    HID_Buffer[2] = -yMove;

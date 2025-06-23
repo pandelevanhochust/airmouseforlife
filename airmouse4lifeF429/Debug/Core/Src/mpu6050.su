@@ -2,5 +2,5 @@
 ../Core/Src/mpu6050.c:68:6:MPU6050_Read_Accel	40	static
 ../Core/Src/mpu6050.c:90:6:MPU6050_Read_Gyro	40	static
 ../Core/Src/mpu6050.c:111:6:MPU6050_Read_Temp	40	static
-../Core/Src/mpu6050.c:123:6:MPU6050_Read_All	112	static
-../Core/Src/mpu6050.c:171:8:Kalman_getAngle	104	static
+../Core/Src/mpu6050.c:123:6:MPU6050_Read_All	104	static
+../Core/Src/mpu6050.c:181:8:Kalman_getAngle	104	static

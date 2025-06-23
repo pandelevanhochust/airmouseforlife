@@ -82,10 +82,6 @@ void SendDataOverUART(MPU6050_t *MPU6050)
         (int)MPU6050->Ax, abs((int)(MPU6050->Ax * 100) % 100),
         (int)MPU6050->Ay, abs((int)(MPU6050->Ay * 100) % 100),
         (int)MPU6050->Az, abs((int)(MPU6050->Az * 100) % 100)
-//        (int)MPU6050->Gx, abs((int)(MPU6050->Gx * 100) % 100),
-//        (int)MPU6050->Gy, abs((int)(MPU6050->Gy * 100) % 100),
-//        (int)MPU6050->Gz, abs((int)(MPU6050->Gz * 100) % 100),
-//        (int)MPU6050->Temperature, abs((int)(MPU6050->Temperature * 100) % 100)
     );
 
     // Send the data over UART
