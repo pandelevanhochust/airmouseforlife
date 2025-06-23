@@ -1,7 +1,7 @@
-../Core/Src/main.c:71:6:SendDataOverUART	1
-../Core/Src/main.c:91:6:Scan_I2C_Addresses	3
-../Core/Src/main.c:122:5:main	7
-../Core/Src/main.c:219:6:SystemClock_Config	3
-../Core/Src/main.c:265:6:MX_USART1_UART_Init	2
-../Core/Src/main.c:298:13:MX_GPIO_Init	1
-../Core/Src/main.c:363:6:Error_Handler	1
+../Core/Src/main.c:89:6:SendDataOverUART	1
+../Core/Src/main.c:107:6:Scan_I2C_Addresses	3
+../Core/Src/main.c:138:5:main	7
+../Core/Src/main.c:235:6:SystemClock_Config	3
+../Core/Src/main.c:281:6:MX_USART1_UART_Init	2
+../Core/Src/main.c:314:13:MX_GPIO_Init	1
+../Core/Src/main.c:379:6:Error_Handler	1
