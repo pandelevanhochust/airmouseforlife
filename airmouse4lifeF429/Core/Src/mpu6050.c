@@ -1,5 +1,8 @@
 #include "mpu6050.h"
 #include "math.h"
+#include "stm32f4xx_hal_uart.h"
+#include "i2c.h"
+
 
 // Hằng số chuyển đổi radian sang độ
 #define RAD_TO_DEG 57.29577951308232
@@ -22,7 +25,7 @@
 #define LSB_GYRO             131.0f     // ±250 dps → 131 LSB/(°/s)
 
 // Timeout mặc định cho I2C
-const uint16_t i2c_timeout = HAL_MAX_DELAY;
+const uint32_t  i2c_timeout = HAL_MAX_DELAY;
 
 // Hệ số hiệu chỉnh trục Z cho cảm biến gia tốc
 const double Accel_Z_corrector = 14418.0;
@@ -78,7 +81,7 @@ uint8_t MPU6050_Init(I2C_HandleTypeDef *hi2c) {
 void MPU6050_Read_All(I2C_HandleTypeDef *hi2c, MPU6050_t *data) {
     uint8_t rec_data[14];
 
-    // Đọc 14 byte từ thanh ghi ACCEL_XOUT_H: ACCEL(6B) + TEMP(2B) + GYRO(6B)
+    // Đọc 14 byte từ thanh ghi ACCEL_XOUT_H
     HAL_I2C_Mem_Read(hi2c, MPU6050_ADDR, ACCEL_XOUT_H_REG, 1, rec_data, 14, i2c_timeout);
 
     // Giải mã dữ liệu gia tốc thô
@@ -90,10 +93,6 @@ void MPU6050_Read_All(I2C_HandleTypeDef *hi2c, MPU6050_t *data) {
     data->Ax = data->Accel_X_RAW * 981.0f / LSB_ACC;
     data->Ay = data->Accel_Y_RAW * 981.0f / LSB_ACC;
     data->Az = data->Accel_Z_RAW * 981.0f / Accel_Z_corrector;
-
-    // Nhiệt độ (không bắt buộc)
-    int16_t temp_raw = (int16_t)(rec_data[6] << 8 | rec_data[7]);
-    data->Temperature = (float)temp_raw / 340.0f + 36.53f;
 
     // Giải mã dữ liệu gyro
     data->Gyro_X_RAW = (int16_t)(rec_data[8] << 8 | rec_data[9]);

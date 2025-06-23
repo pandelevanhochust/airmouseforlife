@@ -68,24 +68,24 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void SendDataOverUART(MPU6050_t *MPU6050)
+void SendDataOverUART(MPU6050_t *MPU6050, int8_t xMove, int8_t yMove)
 {
-    // Send data in CSV format
-    char buffer[200];  // Increased buffer size
+    char buffer[250];
 
-    // Format: time,Ax,Ay,Az,Gx,Gy,Gz,Temp
     sprintf(
         buffer,
-        "x:%d.%02d, y:%d.%02d, z:%d.%02d\r\n",
+        "Ax: %d.%02d, Ay: %d.%02d, Az: %d.%02d, AngleX: %d.%02d, AngleY: %d.%02d, dx: %d, dy: %d\r\n",
         (int)MPU6050->Ax, abs((int)(MPU6050->Ax * 100) % 100),
         (int)MPU6050->Ay, abs((int)(MPU6050->Ay * 100) % 100),
-        (int)MPU6050->Az, abs((int)(MPU6050->Az * 100) % 100)
+        (int)MPU6050->Az, abs((int)(MPU6050->Az * 100) % 100),
+        (int)MPU6050->KalmanAngleX, abs((int)(MPU6050->KalmanAngleX * 100) % 100),
+        (int)MPU6050->KalmanAngleY, abs((int)(MPU6050->KalmanAngleY * 100) % 100),
+        xMove, yMove
     );
 
-    // Send the data over UART
-//    HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
     HAL_UART_Transmit(&huart1, (uint8_t *)buffer, strlen(buffer), HAL_MAX_DELAY);
 }
+
 
 
 void Scan_I2C_Addresses(void)
@@ -180,20 +180,20 @@ int main(void)
 	    if(hUsbDeviceFS.pClassData != NULL) {
 	   	 HAL_GPIO_WritePin(GPIOG,GPIO_PIN_13,GPIO_PIN_SET);
 
-	   	 	MPU6050_Read_Gyro(&hi2c1, &MPU6050);
+//	   	 	MPU6050_Read_Gyro(&hi2c1, &MPU6050);
 		    MPU6050_Read_All(&hi2c1, &MPU6050);
 
 		    float scale = 0.3f;
 
 		    int8_t xMove = (int8_t)(MPU6050.KalmanAngleX * scale);
 		    int8_t yMove = (int8_t)(MPU6050.KalmanAngleY * scale);
-		    SendDataOverUART(&MPU6050);
-
 
 		    // Prepare HID report
 		    //Deadzone
 		    if (abs(xMove) < 1) xMove = 0;
 		    if (abs(yMove) < 1) yMove = 0;
+
+		    SendDataOverUART(&MPU6050, xMove, yMove);
 
 		    uint8_t HID_Buffer[3] = {0};
 		    HID_Buffer[1] = xMove;
