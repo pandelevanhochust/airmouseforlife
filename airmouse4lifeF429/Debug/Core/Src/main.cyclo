@@ -1,7 +1,8 @@
 ../Core/Src/main.c:89:6:SendDataOverUART	1
-../Core/Src/main.c:105:6:Scan_I2C_Addresses	3
-../Core/Src/main.c:136:5:main	7
-../Core/Src/main.c:233:6:SystemClock_Config	3
-../Core/Src/main.c:279:6:MX_USART1_UART_Init	2
-../Core/Src/main.c:312:13:MX_GPIO_Init	1
-../Core/Src/main.c:377:6:Error_Handler	1
+../Core/Src/main.c:104:6:Scan_I2C_Addresses	3
+../Core/Src/main.c:131:6:Process_Gyro_Mouse	8
+../Core/Src/main.c:174:5:main	5
+../Core/Src/main.c:249:6:SystemClock_Config	3
+../Core/Src/main.c:295:6:MX_USART1_UART_Init	2
+../Core/Src/main.c:328:13:MX_GPIO_Init	1
+../Core/Src/main.c:400:6:Error_Handler	1

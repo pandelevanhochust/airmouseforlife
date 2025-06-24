@@ -101,7 +101,6 @@ void SendDataOverUART(MPU6050_t *MPU6050, int8_t xMove, int8_t yMove)
     HAL_UART_Transmit(&huart1, (uint8_t *)buffer, strlen(buffer), HAL_MAX_DELAY);
 }
 
-
 void Scan_I2C_Addresses(void)
 {
     uint8_t i;
@@ -127,6 +126,45 @@ void Scan_I2C_Addresses(void)
     HAL_GPIO_WritePin(GPIOG,GPIO_PIN_14,GPIO_PIN_SET);
     HAL_UART_Transmit(&huart1, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);
 }
+
+
+void Process_Gyro_Mouse(void)
+{
+    MPU6050_Read_All(&hi2c1, &MPU6050);
+
+    float scale = 0.3f;
+    int8_t xMove = (int8_t)(MPU6050.KalmanAngleX * scale);
+    int8_t yMove = (int8_t)(MPU6050.KalmanAngleY * scale);
+
+    // Deadzone filtering
+    if (abs(xMove) < 1) xMove = 0;
+    if (abs(yMove) < 1) yMove = 0;
+
+    // Read buttons
+    uint8_t buttons = 0;
+    if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2) == GPIO_PIN_SET) buttons |= 0x01;
+    if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_SET) buttons |= 0x02;
+
+    // Send UART debug
+    SendDataOverUART(&MPU6050, xMove, yMove);
+
+    // Send HID report if needed
+    if (xMove != 0 || yMove != 0 || buttons != 0) {
+        uint8_t HID_Buffer[4] = {buttons, xMove, -yMove, 0};  // Invert Y for natural feel
+        USBD_HID_SendReport(&hUsbDeviceFS, HID_Buffer, sizeof(HID_Buffer));
+        HAL_Delay(10); // match USB HID polling rate
+    }
+}
+
+//void Debug_Print_Status(void)
+//{
+//    char buffer[100];
+//    sprintf(buffer, "x: %.2f, y: %.2f\r\n",
+//            MPU6050.KalmanAngleX, MPU6050.KalmanAngleY);
+//    HAL_UART_Transmit(&huart1, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);
+//}
+
+
 /* USER CODE END 0 */
 
 /**
@@ -191,34 +229,12 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	    if(hUsbDeviceFS.pClassData == NULL) {
-	   	 HAL_GPIO_WritePin(GPIOG,GPIO_PIN_13,GPIO_PIN_SET);
+	    Process_Gyro_Mouse();
 
-//	   	 	MPU6050_Read_Gyro(&hi2c1, &MPU6050);
-		    MPU6050_Read_All(&hi2c1, &MPU6050);
-
-		    float scale = 0.3f;
-
-		    int8_t xMove = (int8_t)(MPU6050.KalmanAngleX * scale);
-		    int8_t yMove = (int8_t)(MPU6050.KalmanAngleY * scale);
-//		    SendDataOverUART(&MPU6050);
-		    SendDataOverUART(&MPU6050, xMove,yMove);
-
-		    // Prepare HID report
-		    //Deadzone
-		    if (abs(xMove) < 1) xMove = 0;
-		    if (abs(yMove) < 1) yMove = 0;
-
-		    uint8_t HID_Buffer[3] = {0};
-		    HID_Buffer[1] = xMove;
-		    HID_Buffer[2] = -yMove;
-
-		    // Send HID report
-		    USBD_HID_SendReport(&hUsbDeviceFS, HID_Buffer, sizeof(HID_Buffer));
-		    HAL_Delay(10);
-
-	    } else {
-	   	 HAL_GPIO_WritePin(GPIOG,GPIO_PIN_13,GPIO_PIN_RESET);
+	    static uint32_t last_debug_time = 0;
+	    if (HAL_GetTick() - last_debug_time > 5000) {
+	        last_debug_time = HAL_GetTick();
+//	        Debug_Print_Status();
 	    }
 
     /* USER CODE BEGIN 3 */
@@ -325,6 +341,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin =  GPIO_PIN_2 | GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
 
   GPIO_InitStruct.Pin = GPIO_PIN_13 | GPIO_PIN_14;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
